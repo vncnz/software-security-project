@@ -48,13 +48,24 @@ Un esempio è `print("Oggi è il %d/%d/%d\n", d, m, y)`, le tre occorrenze di %d
 La vulnerabilità è dovuta principalmente al fatto che non esiste alcun controllo sul fatto che il numero dei placeholders corrisponda al numero di parametri passati ed una volta esauriti i parametri per riempire i placeholders vengono usati i valori trovati sullo stack. E' inoltre possibile far sì che i placeholders non vengano riempiti cercando i parametri in ordine e che il primo placeholder si riferisca, ad esempio, al terzo parametro: `print("Oggi è il %1$d/%0$d/%2$d\n", d, m, y)` diventa quindi "Oggi è il 5/27/1987".
 Un placeholder importante per questo attacco è $lx, che si aspetta un long unsigned int come valore da visualizzare e ci permette quindi di leggere le aree di memoria in esadecimale 64 bit alla volta.
 
-### ROP
-[FARE]
+### Return-oriented programming (ROP)
+In un attacco di tipo ROP l'attaccante riesce a dirottare il controllo di flusso dell'applicazione ed eseguire una serie di operazioni da lui scelte tra quelle già incluse nell'applicazione o nelle librerie da essa importate.
+
+### Fuzzing
+Il fuzzing è una tecnica di collaudo del software che consiste nell'inviare input non validi o non previsti ad un programma.
 
 ### ...Altro...?
 [FARE]
 
 ## Analisi del target
+
+### [TITOLO DA DECIDERE]
+
+```
+vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ file vuln
+vuln: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=fa4e601e3c0d55b6235c3f7ea5e32aed8a1b01fb, for GNU/Linux 3.2.0, not stripped
+```
+Il file è un ELF a 64-bit little-endian, dynamically linked.
 
 ### Descrizione
 
@@ -214,12 +225,12 @@ La riga che ci interessa è quella relativa a [RSP] dove vediamo un offset pari 
 
 ## Exploitation
 
-Il nostro obiettivo finale è riuscire ad eseguire system("/bin/sh"), per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite i registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa /bin/sh e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
+Il nostro obiettivo finale è riuscire ad eseguire `system("/bin/sh")`, per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite i registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa /bin/sh e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
 
 Il nostro payload diventa quindi:
 'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + SYSTEM_ADDRESS
 
-Dobbiamo trovare l'indirizzo di un'istruzione "pop rdi; ret" nel codice esistente e lo possiamo fare sfruttando il tool ROPgadget così:
+Dobbiamo trovare l'indirizzo di un'istruzione "pop rdi; ret" nel codice esistente, possiamo cercarlo nel codice dell'eseguibile oppure nella libreria libc. In questo secondo caso diventa superfluo il binary base leak spiegato prima. In qualunque caso per trovare l'indirizzo di una particolare istruzione possiamo sfruttare il tool ROPgadget così:
 ```
 vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ ROPgadget --binary /usr/lib/x86_64-linux-gnu/libc.so.6 | grep "pop rdi"
 0x00000000000f7a3e : cld ; pop rdi ; sete cl ; or eax, ecx ; jmp 0xf79d5
@@ -239,3 +250,6 @@ La lista di risultati è molto più lunga ma abbiamo omesso la maggior parte del
 ```
 0x000000000002a3e5 : pop rdi ; ret
 ```
+
+Se l'attacco non funziona ancora può essere a causa di un disallineamento. Provandolo si vede infatti il programma crashare sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (usato tra gli altri da Linux e di cui ELF è parte) che un allineamento dello stack a 16-byte prima di una call.
+Per risolvere possiamo aggiungere un'istruzione di ret che provoca il pop di 8 byte dalla cima dello stack sistemando così l'allineamento. Anche l'istruzione ret può essere trovata all'interno di libc, nello stesso modo di _pop rdi_.
