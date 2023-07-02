@@ -6,30 +6,6 @@
 Il progetto inizialmente concordato prevedeva l'apertura di una shell tramite lo sfruttamento di una format-string-vulnerability ed il bypassare la protezione ai buffer overflow costituita dal canarino. Il progetto effettivamente implementato si è spinto più avanti, aprendo una shell in un'applicazione compilata con tutte le protezioni di default attive in gcc su un sistema a 64bit.
 Il sistema operativo di interesse è una versione recente di Linux Mint, una distro Ubuntu-based, a 64bit, con la protezione ASLR attiva.
 
-## Protezioni e caratteristiche del file target
-
-Il target è un eseguibile che è stato compilato con gcc con le protezioni attivate come da default:
-
-![Protezioni eseguibile target](images/protections.jpg)
-
-### Architettura
-L'architettura è di tipo amd64 little-endian.
-
-### RELocation Read-Only (RELRO)
-Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only.
-
-### Stack canary
-Al fine di cercare di evitare gli attacchi di buffer overflow, ovvero di scritture di valori che vanno oltre allo spazio allocato per gli array, il compilatore inserisce automaticamente accanto al buffer [e/o stack?] un valore casuale, generato all'avvio dell'applicazione, e verifica che tale valore rimanga immutato durante l'esecuzione, come ultima operazione al termine dell'esecuzione della funzione corrente. Se il valore letto non coincide con quello generato inizialmente l'applicazione genera un errore.
-
-### Non-eXecutable stack (NX)
-Questa protezione consiste nel rendere non eseguibile lo stack, il che comporta che eventuali istruzioni salvate in un buffer non possono essere poi eseguite facendo saltare il base-pointer alla prima di esse. E' un meccanismo che, come i canarini, complica gli attacchi di tipo buffer overflow.
-
-### Position-Independent Executable (PIE)
-Con questo meccanismo attivo il codice dell'applicazione viene posizionato, in fase di preparazione all'esecuzione, in un indirizzo definito casualmente, complica quindi gli attacchi che fanno uso di istruzioni interne al programma target.
-
-### Address Space Layout Randomization (ASLR)
-Questo meccanismo non è legato all'eseguibile in sé ed è un comportamento del sistema operativo. Consiste nel rendere parzialmente casuale l'indirizzo di partenza delle librerie importate dall'eseguibile oltre a quello dello stack e dell'heap.
-
 
 ## Strumenti utilizzati
 
@@ -59,13 +35,35 @@ Il fuzzing è una tecnica di collaudo del software che consiste nell'inviare inp
 
 ## Analisi del target
 
-### [TITOLO DA DECIDERE]
+
+### Architettura
 
 ```
 vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ file vuln
 vuln: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=fa4e601e3c0d55b6235c3f7ea5e32aed8a1b01fb, for GNU/Linux 3.2.0, not stripped
 ```
 Il file è un ELF a 64-bit little-endian, dynamically linked.
+
+### Protezioni e caratteristiche del file target
+
+Il target è un eseguibile che è stato compilato con gcc con le protezioni attivate come da default:
+
+![Protezioni eseguibile target](images/protections.jpg)
+
+### RELocation Read-Only (RELRO)
+Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only.
+
+### Stack canary
+Al fine di cercare di evitare gli attacchi di buffer overflow, ovvero di scritture di valori che vanno oltre allo spazio allocato per gli array, il compilatore inserisce automaticamente accanto al buffer [e/o stack?] un valore casuale, generato all'avvio dell'applicazione, e verifica che tale valore rimanga immutato durante l'esecuzione, come ultima operazione al termine dell'esecuzione della funzione corrente. Se il valore letto non coincide con quello generato inizialmente l'applicazione genera un errore.
+
+### Non-eXecutable stack (NX)
+Questa protezione consiste nel rendere non eseguibile lo stack, il che comporta che eventuali istruzioni salvate in un buffer non possono essere poi eseguite facendo saltare il base-pointer alla prima di esse. E' un meccanismo che, come i canarini, complica gli attacchi di tipo buffer overflow.
+
+### Position-Independent Executable (PIE)
+Con questo meccanismo attivo il codice dell'applicazione viene posizionato, in fase di preparazione all'esecuzione, in un indirizzo definito casualmente, complica quindi gli attacchi che fanno uso di istruzioni interne al programma target.
+
+### Address Space Layout Randomization (ASLR)
+Questo meccanismo non è legato all'eseguibile in sé ed è un comportamento del sistema operativo. Consiste nel rendere parzialmente casuale l'indirizzo di partenza delle librerie importate dall'eseguibile oltre a quello dello stack e dell'heap.
 
 ### Descrizione
 
