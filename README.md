@@ -114,7 +114,7 @@ Vediamo nel programma anche un esplicito inserimento dell'istruzione assembly "p
 
 Dobbiamo sfruttare il primo inserimento per "curiosare" nello stack e comprendere cosa si trova dopo ad esso. Siccome vogliamo che il programma non termini improvvisamente con un'eccezione mandiamo vogliamo rimanere entro i 16 caratteri per il primo input, per farci un'idea di una ventina di posizioni possiamo quindi eseguire venti volte il programma inviando il comando per leggere una sola posizione ogni volta.
 Il testo che dobbiamo dare in input è del tipo %0\$lx per la prima posizione, %1\$lx per la seconda e così via.
-Lo script step01.py automatizza questo processo e ci dà il seguente output:
+Lo script fuzzer.py automatizza questo processo e ci dà il seguente output:
 
 ```
 %0$lx - b'AAAA %0$lx'               è il nostro input
