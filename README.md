@@ -22,7 +22,7 @@ Si tratta di una classe di vulnerabilità scoperte nel 1999 presenti in alcuni l
 
 Un esempio è `print("Oggi è il %d/%d/%d\n", d, m, y)`, le tre occorrenze di %d indicano come i parametri che seguono devono essere convertiti (in questo caso come numeri decimali). Il risultato dell'esempio è quindi simile a "Oggi è il 27/5/1987". Altri placeholders sono %s per le stringhe e %x per valori esadecimali.
 La vulnerabilità è dovuta principalmente al fatto che non esiste alcun controllo sul fatto che il numero dei placeholders corrisponda al numero di parametri passati ed una volta esauriti i parametri per riempire i placeholders vengono usati i valori trovati sullo stack. E' inoltre possibile far sì che i placeholders non vengano riempiti cercando i parametri in ordine e che il primo placeholder si riferisca, ad esempio, al terzo parametro: `print("Oggi è il %1$d/%0$d/%2$d\n", d, m, y)` diventa quindi "Oggi è il 5/27/1987".
-Un placeholder importante per questo attacco è $lx, che si aspetta un long unsigned int come valore da visualizzare e ci permette quindi di leggere le aree di memoria in esadecimale 64 bit alla volta.
+Un placeholder importante per questo attacco è `$lx`, che si aspetta un long unsigned int come valore da visualizzare e ci permette quindi di leggere le aree di memoria in esadecimale 64 bit alla volta.
 
 ### Return-oriented programming (ROP)
 In un attacco di tipo ROP l'attaccante riesce a dirottare il controllo di flusso dell'applicazione ed eseguire una serie di operazioni da lui scelte tra quelle già incluse nell'applicazione o nelle librerie da essa importate.
@@ -111,7 +111,7 @@ Vediamo nel programma anche un esplicito inserimento dell'istruzione assembly "p
 ### Breve analisi iniziale
 
 Dobbiamo sfruttare il primo inserimento per "curiosare" nello stack e comprendere cosa si trova dopo ad esso. Siccome vogliamo che il programma non termini improvvisamente con un'eccezione mandiamo vogliamo rimanere entro i 16 caratteri per il primo input, per farci un'idea di una ventina di posizioni possiamo quindi eseguire venti volte il programma inviando il comando per leggere una sola posizione ogni volta.
-Il testo che dobbiamo dare in input è del tipo %0\$lx per la prima posizione, %1\$lx per la seconda e così via.
+Il testo che dobbiamo dare in input è del tipo `%0\$lx` per la prima posizione, `%1\$lx` per la seconda e così via.
 Lo script fuzzer.py automatizza questo processo e ci dà il seguente output:
 
 ```
@@ -140,12 +140,12 @@ Lo script fuzzer.py automatizza questo processo e ci dà il seguente output:
 I commenti a destra di alcune righe sono stati aggiunti a posteriori a mano, guardando i valori uno ad uno e tenendo conto che:
 - gli indirizzi della libreria libc iniziano con 0x00007f
 - gli indirizzi che iniziano con 0x000055 potrebbero essere istruzioni dell'eseguibile
-- I valori che sfruttano tutti i 64bit potrebbero essere canarini. Trattandosi di un sistema linux sappiamo che i canarini finiscono con 00 quindi potremmo avere già trovato la posizione del canarino con %11$lx, lo verificheremo più avanti.
+- I valori che sfruttano tutti i 64bit potrebbero essere canarini. Trattandosi di un sistema linux sappiamo che i canarini finiscono con 00 quindi potremmo avere già trovato la posizione del canarino con `%11$lx`, lo verificheremo più avanti.
 
 ## Libc leak
 
 Siccome ASLR è attivo la posizione della libreria libc in memoria può variare ad ogni esecuzione, dobbiamo quindi rilevarla per poterci riferire correttamente a parti di essa necessarie per l'attacco.
-Nei dati che abbiamo visto nell'analisi iniziale ci sono diversi indirizzi che sembrano appartenere a libc. Possiamo scegliere uno di questi, ad esempio il 3, rieseguire il codice in gbd e prendere nota dell'indirizzo preso con %3\$lx. Eseguendo il gdb il comando vmmap controlliamo qual é l'indirizzo di partenza della libreria libc e calcoliamo l'offset: questo offset sarà lo stesso ad ogni esecuzione e ci permetterà quindi di calcolare ad ogni esecuzione l'indirizzo di inizio di libc per quella specifica esecuzione.
+Nei dati che abbiamo visto nell'analisi iniziale ci sono diversi indirizzi che sembrano appartenere a libc. Possiamo scegliere uno di questi, ad esempio il 3, rieseguire il codice in gbd e prendere nota dell'indirizzo preso con `%3\$lx`. Eseguendo il gdb il comando vmmap controlliamo qual é l'indirizzo di partenza della libreria libc e calcoliamo l'offset: questo offset sarà lo stesso ad ogni esecuzione e ci permetterà quindi di calcolare ad ogni esecuzione l'indirizzo di inizio di libc per quella specifica esecuzione.
 
 ## Canary leak
 
@@ -161,11 +161,11 @@ Se usiamo GDB e disassembliamo il main troviamo verso la fine queste istruzioni:
    0x555555555269 <main+179>:	call   0x555555555090 <__stack_chk_fail@plt>
 ```
 
-Vediamo che è presente un'istruzione che lancia l'eccezione di buffer overflow, si tratta della call a __stack_chk_fail e vediamo che la condizione che ne influenza l'esecuzione si basa sul registro RDX. Possiamo quindi lanciare l'eseguibile nel debugger, farci dare l'undicesimo valore inserendo nel primo input %11$lx, proseguire fino al punto di verifica del canarino e controllare se il valore presente in rdx corrisponde al valore ottenuto dall'input. Nel nostro caso coincide quindi il canarino è proprio tale valore.
+Vediamo che è presente un'istruzione che lancia l'eccezione di buffer overflow, si tratta della call a __stack_chk_fail e vediamo che la condizione che ne influenza l'esecuzione si basa sul registro RDX. Possiamo quindi lanciare l'eseguibile nel debugger, farci dare l'undicesimo valore inserendo nel primo input `%11$lx`, proseguire fino al punto di verifica del canarino e controllare se il valore presente in rdx corrisponde al valore ottenuto dall'input. Nel nostro caso coincide quindi il canarino è proprio tale valore.
 
 ## Binary Base Leak (PIE)
 [Titolo alternativo: ## Position-Independent Executable (PIE)]
-Anche se non è necessario per il nostro attacco, è possibile ottenere il base address anche del codice dell'eseguibile stesso in modo simile a quanto fatto per libc. Eseguiamo in GDB, inseriamo in input %5$lx e facciamo poi la differenza tra il risultato e l'indirizzo base che otteniamo tramite il comando vmmap: questo offset rimarrà sempre lo stesso e permetterà quindi ad ogni esecuzione di ottenere il base address dell'eseguibile.
+Anche se non è necessario per il nostro attacco, è possibile ottenere il base address anche del codice dell'eseguibile stesso in modo simile a quanto fatto per libc. Eseguiamo in GDB, inseriamo in input `%5$lx` e facciamo poi la differenza tra il risultato e l'indirizzo base che otteniamo tramite il comando vmmap: questo offset rimarrà sempre lo stesso e permetterà quindi ad ogni esecuzione di ottenere il base address dell'eseguibile.
 
 ```
 gdb-peda$ vmmap
