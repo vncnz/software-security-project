@@ -181,7 +181,7 @@ Se il valore ottenuto da %5&lx è 0x5555555596b0 e le istruzioni dell'eseguibile
 
 ## Ultime informazioni necessarie
 
-Abbiamo visto che con il primo input da inserire possiamo estrarre diverse informazioni utili per violare le diverse protezioni e -condurre, con il secondo input, l'attacco vero e proprio. Ci mancano però ancora alcune informazioni e ora andremo a scoprire. Prima di tutto
+Abbiamo visto che con il primo input da inserire possiamo estrarre diverse informazioni utili per violare le diverse protezioni e condurre, con il secondo input, l'attacco vero e proprio. Ci mancano però ancora alcune informazioni e ora andremo a scoprire.
 
 ### Padding per il canarino
 
@@ -201,7 +201,7 @@ gdb-peda$ pattern_offset (AADAA;A
 (AADAA;A found at offset: 24
 ```
 
-## Padding per il return
+### Padding per il return
 
 Trovata la posizione del canarino dobbiamo capire quanti altri caratteri inserire prima di raggiungere la posizione dell'istruzione di return. Per farlo eseguiamo lo script ret_offset.py che con il primo input scopre il valore del canarino e col secondo input invia un numero di caratteri sufficiente a riempire il buffer, seguito dal canarino, seguito dalla solita sequenza creata da gdb. Lo script, oltre ad inserire gli input, apre una sessione con gdb e ci permette di guardare registri, stack e quant'altro. Con il comando `pattern search` gdb cerca pezzi di pattern in tutte le posizioni e ci restituisce questo:
 
@@ -251,3 +251,15 @@ La lista di risultati è molto più lunga ma abbiamo omesso la maggior parte del
 
 Se l'attacco non funziona ancora può essere a causa di un disallineamento. Provandolo si vede infatti il programma crashare sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (usato tra gli altri da Linux e di cui ELF è parte) che un allineamento dello stack a 16-byte prima di una call.
 Per risolvere possiamo aggiungere un'istruzione di ret che provoca il pop di 8 byte dalla cima dello stack sistemando così l'allineamento. Anche l'istruzione ret può essere trovata all'interno di libc, nello stesso modo di _pop rdi_.
+
+Il nostro payload ora è questo:
+'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + RET+ SYSTEM_ADDRESS
+
+### Aggiunta di setuid
+
+La shell che apriamo con l'attacco fin qui descritto ha i privilegi di un utente normale, l'utente a cui il processo fa riferimento. Possiamo provare ad effettuare un'operazione di _privilege escalation_ ed aprire la shell con privilegi di root. E' un'operazione che arrivati a questo punto possiamo fare aggiungendo due operazioni: un ulteriore POP_RDI seguito da _setuid_ preso da libc allo stesso modo con cui abbiamo preso _system_ e _/bin/sh_.
+
+>Il payload finale è:
+'A'* 24 + canary + 'B'* 8 + POP_RDI + SETUID + POP_RDI + BIN_SH_ADDRESS + RET+ SYSTEM_ADDRESS
+
+Bisogna sottolineare però che la shell di default su molte distro linux è bash, la quale per ragioni di sicurezza droppa i privilegi all'avvio rendendo inefficace il setuid inserito.
