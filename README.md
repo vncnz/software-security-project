@@ -39,8 +39,8 @@ Il fuzzing è una tecnica di collaudo del software che consiste nell'inviare inp
 ### Architettura
 
 ```
-vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ file vuln
-vuln: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=fa4e601e3c0d55b6235c3f7ea5e32aed8a1b01fb, for GNU/Linux 3.2.0, not stripped
+vincenzo@UbuntuZsh:~/Desktop/software-security-project$ file vuln
+vuln: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=1c2f6f14423cc22200b6d4828e0aa96183fb1d73, for GNU/Linux 3.2.0, not stripped
 ```
 Il file è un ELF a 64-bit little-endian, dynamically linked.
 
@@ -48,14 +48,16 @@ Il file è un ELF a 64-bit little-endian, dynamically linked.
 
 Il target è un eseguibile che è stato compilato con gcc con le protezioni attivate come da default:
 
+<style>g { color: green; text-weight: bold; }</style>
+
 <pre>
 vincenzo@UbuntuZsh:~/Desktop/software-security-project$ checksec vuln
 [*] '/home/vincenzo/Desktop/software-security-project/vuln'
     Arch:     amd64-64-little
-    RELRO:    <span style="color:green">Full RELRO</span>
-    Stack:    <span style="color:green">Canary found</span>
-    NX:       <span style="color:green">NX enabled</span>
-    PIE:      <span style="color:green">PIE enabled</span>
+    RELRO:    <g>Full RELRO</g>
+    Stack:    <span style="color:green;font-weight:bold">Canary found</span>
+    NX:       <span style="color:green;font-weight:bold">NX enabled</span>
+    PIE:      <span style="color:green;font-weight:bold">PIE enabled</span>
 </pre>
 
 ### RELocation Read-Only (RELRO)
@@ -91,14 +93,6 @@ Questo è il sorgente:
 ```
 #include <stdio.h>
 #include <string.h>
-
-void callme() {
-  asm volatile ("pop %%rdi\n\t"
-      "ret"
-      :
-      :
-      : "rdi");
-}
 
 int main(int argc, const char **argv)
 {
