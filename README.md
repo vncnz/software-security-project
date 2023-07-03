@@ -48,7 +48,15 @@ Il file è un ELF a 64-bit little-endian, dynamically linked.
 
 Il target è un eseguibile che è stato compilato con gcc con le protezioni attivate come da default:
 
-![Protezioni eseguibile target](images/protections.jpg)
+<pre>
+vincenzo@UbuntuZsh:~/Desktop/software-security-project$ checksec vuln
+[*] '/home/vincenzo/Desktop/software-security-project/vuln'
+    Arch:     amd64-64-little
+    RELRO:    <span style="color:green">Full RELRO</span>
+    Stack:    <span style="color:green">Canary found</span>
+    NX:       <span style="color:green">NX enabled</span>
+    PIE:      <span style="color:green">PIE enabled</span>
+</pre>
 
 ### RELocation Read-Only (RELRO)
 Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only.
