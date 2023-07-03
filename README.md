@@ -254,12 +254,3 @@ Per risolvere possiamo aggiungere un'istruzione di ret che provoca il pop di 8 b
 
 Il nostro payload ora è questo:
 'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + RET+ SYSTEM_ADDRESS
-
-### Aggiunta di setuid
-
-La shell che apriamo con l'attacco fin qui descritto ha i privilegi di un utente normale, l'utente a cui il processo fa riferimento. Possiamo provare ad effettuare un'operazione di _privilege escalation_ ed aprire la shell con privilegi di root. E' un'operazione che arrivati a questo punto possiamo fare aggiungendo due operazioni: un ulteriore POP_RDI seguito da _setuid_ preso da libc allo stesso modo con cui abbiamo preso _system_ e _/bin/sh_.
-
->Il payload finale è:
-'A'* 24 + canary + 'B'* 8 + POP_RDI + SETUID + POP_RDI + BIN_SH_ADDRESS + RET+ SYSTEM_ADDRESS
-
-Bisogna sottolineare però che la shell di default su molte distro linux è bash, la quale per ragioni di sicurezza droppa i privilegi all'avvio rendendo inefficace il setuid inserito.
