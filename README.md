@@ -1,15 +1,13 @@
-# Titolo da decidere
-### Matricola VR457811 - Progetto d'esame per Software Security AA 2022/2023
+# Matricola VR457811 - Progetto d'esame per Software Security AA 2022/2023
 
 ## Intro
 
-Il progetto inizialmente concordato prevedeva l'apertura di una shell tramite lo sfruttamento di una format-string-vulnerability ed il bypassare la protezione ai buffer overflow costituita dal canarino. Il progetto effettivamente implementato si è spinto più avanti, aprendo una shell in un'applicazione compilata con tutte le protezioni di default attive in gcc su un sistema a 64bit.
+Il progetto inizialmente concordato prevedeva l'apertura di una shell tramite lo sfruttamento di una format-string-vulnerability in un processo con abilitata la protezione da buffer overflow (comunemente chiamata canary). Il progetto effettivamente implementato si è spinto più avanti, aprendo una shell in un'applicazione compilata con tutte le protezioni di default attive in gcc su un sistema a 64bit.
 Il sistema operativo di interesse è una versione recente di Linux Mint, una distro Ubuntu-based, a 64bit, con la protezione ASLR attiva.
-
 
 ## Strumenti utilizzati
 
-L'attacco viene portato tramite uno script scritto in python versione 3.x e la relativa libreria pwntools. Sono inoltre stati usati per il debug il debugger GDB e la relativa estensione PEDA (Python Exploit Development Assistance) che fornisce una serie di strumenti utili come la generazione di pattern, la ricerca di ROPgadgets e la visualizzazione della posizione in memoria di tutte le librerie caricate dall'eseguibile.
+L'attacco viene effettuato tramite uno script scritto in python versione 3.x e la libreria pwntools. Sono inoltre stati usati per il debug il debugger GDB e la sua estensione PEDA (Python Exploit Development Assistance) che fornisce una serie di strumenti utili come la generazione di pattern, la ricerca di ROPgadgets e la visualizzazione della posizione in memoria di tutte le librerie caricate dall'eseguibile.
 Per scrivere il codice dell'attacco è stato utilizzato vscode.
 
 ## Macro-concetti coinvolti nell'attacco
@@ -21,20 +19,17 @@ Si tratta di una classe di vulnerabilità scoperte nel 1999 presenti in alcuni l
 - Uno o più format string parameters che definiscono come i dati devono essere convertiti per l'inserimento nella format string prima definita
 
 Un esempio è `print("Oggi è il %d/%d/%d\n", d, m, y)`, le tre occorrenze di %d indicano come i parametri che seguono devono essere convertiti (in questo caso come numeri decimali). Il risultato dell'esempio è quindi simile a "Oggi è il 27/5/1987". Altri placeholders sono %s per le stringhe e %x per valori esadecimali.
-La vulnerabilità è dovuta principalmente al fatto che non esiste alcun controllo sul fatto che il numero dei placeholders corrisponda al numero di parametri passati ed una volta esauriti i parametri per riempire i placeholders vengono usati i valori trovati sullo stack. E' inoltre possibile far sì che i placeholders non vengano riempiti cercando i parametri in ordine e che il primo placeholder si riferisca, ad esempio, al terzo parametro: `print("Oggi è il %1$d/%0$d/%2$d\n", d, m, y)` diventa quindi "Oggi è il 5/27/1987".
+La vulnerabilità è dovuta principalmente al fatto che in alcune funzioni C non esiste alcun controllo sul fatto che il numero dei placeholders corrisponda al numero di parametri passati ed una volta esauriti i parametri per riempire i placeholders vengono usati i valori trovati sullo stack. E' inoltre possibile far sì che i placeholders non vengano riempiti cercando i parametri in ordine e che il primo placeholder si riferisca, ad esempio, al terzo parametro: `print("Oggi è il %1$d/%0$d/%2$d\n", d, m, y)` diventa quindi "Oggi è il 5/27/1987".
 Un placeholder importante per questo attacco è `$lx`, che si aspetta un long unsigned int come valore da visualizzare e ci permette quindi di leggere le aree di memoria in esadecimale 64 bit alla volta.
 
 ### Return-oriented programming (ROP)
-In un attacco di tipo ROP l'attaccante riesce a dirottare il controllo di flusso dell'applicazione ed eseguire una serie di operazioni da lui scelte tra quelle già incluse nell'applicazione o nelle librerie da essa importate.
+In un attacco di tipo ROP l'attaccante riesce a dirottare il controllo di flusso dell'applicazione ed eseguire una serie di operazioni da lui scelte tra quelle già incluse nell'applicazione o nelle librerie da essa importate. E' un attacco utilizzato quando l'eseguibile target è compilato con la protezione NX abilitata, il cui funzionamento è scopo è spiegato più avanti in questo documento.
 
 ### Fuzzing
 Il fuzzing è una tecnica di collaudo del software che consiste nell'inviare input non validi o non previsti ad un programma.
 
-### ...Altro...?
-[FARE]
 
 ## Analisi del target
-
 
 ### Architettura
 
@@ -62,18 +57,18 @@ vincenzo@UbuntuZsh:~/Desktop/software-security-project$ checksec vuln
 Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only.
 
 ### Stack canary
-Al fine di cercare di evitare gli attacchi di buffer overflow, ovvero di scritture di valori che vanno oltre allo spazio allocato per gli array, il compilatore inserisce automaticamente accanto al buffer [e/o stack?] un valore casuale, generato all'avvio dell'applicazione, e verifica che tale valore rimanga immutato durante l'esecuzione, come ultima operazione al termine dell'esecuzione della funzione corrente. Se il valore letto non coincide con quello generato inizialmente l'applicazione genera un errore.
+Al fine di cercare di evitare gli attacchi di buffer overflow, ovvero di scritture di valori che vanno oltre allo spazio allocato per gli array, il compilatore inserisce automaticamente in coda alle variabili locali di ogni funzione un valore casuale, generato all'avvio dell'applicazione, e verifica che tale valore rimanga immutato come ultima operazione al termine dell'esecuzione della funzione corrente. Se il valore letto non coincide con quello generato inizialmente l'applicazione genera un'eccezione.
 
 ### Non-eXecutable stack (NX)
-Questa protezione consiste nel rendere non eseguibile lo stack, il che comporta che eventuali istruzioni salvate in un buffer non possono essere poi eseguite facendo saltare il base-pointer alla prima di esse. E' un meccanismo che, come i canarini, complica gli attacchi di tipo buffer overflow.
+Questa protezione consiste nel rendere non eseguibile lo stack, il che comporta che eventuali istruzioni salvate in un buffer non possono essere poi eseguite facendo puntare il base-pointer alla prima di esse. E' un meccanismo che, come la presenza dei canarini, complica gli attacchi di tipo buffer overflow in quanto, anche bypassando correttamente il canarino, l'attaccante non può sfruttare le istruzioni che ha iniettato nel buffer.
 
 ### Position-Independent Executable (PIE)
-Con questo meccanismo attivo il codice dell'applicazione viene posizionato, in fase di preparazione all'esecuzione, in un indirizzo definito casualmente, complica quindi gli attacchi che fanno uso di istruzioni interne al programma target.
+Con questo meccanismo attivo il codice dell'applicazione viene posizionato, in fase di preparazione all'esecuzione, in un indirizzo definito casualmente complicando quindi gli attacchi che fanno uso di istruzioni interne al programma target.
 
 ### Address Space Layout Randomization (ASLR)
-Questo meccanismo non è legato all'eseguibile in sé ed è un comportamento del sistema operativo. Consiste nel rendere parzialmente casuale l'indirizzo di partenza delle librerie importate dall'eseguibile oltre a quello dello stack e dell'heap.
+Questo meccanismo non è legato all'eseguibile in sé ed è un comportamento del sistema operativo. Consiste nel rendere casuale, entro certi limiti, l'indirizzo di partenza delle librerie importate dall'eseguibile oltre a quello dello stack e dell'heap. Lo scopo di ASLR è simile a quello di PIE: impedire all'attaccante di conoscere a priori gli indirizzi in memoria delle istruzioni e dei dati a lui utili.
 
-### Descrizione
+### Descrizione del funzionamento
 
 Si tratta di un eseguibile che:
 - chiede di inserire una stringa
@@ -82,7 +77,7 @@ Si tratta di un eseguibile che:
 - la stampa
 - termina
 
-Il programma fa un uso non sicuro della funzione printf, questo ci dà occasione di effettuare un attacco che sfrutta una format-string-vulnerability. Utilizza anche la funzione get che ci consente di riempire un buffer in maniera non controllata a priori ma solo a posteriori (tramite il canarino, che aggireremo).
+Il programma fa un uso non sicuro della funzione printf per la stampa del valore inserito dall'utente, questo dà occasione di effettuare un attacco che sfrutta una format-string-vulnerability. Utilizza anche la funzione get che consente di riempire un buffer in maniera non controllata a priori ma solo a posteriori (tramite il canarino, che aggirereremo).
 
 ### Codice sorgente
 
@@ -240,12 +235,15 @@ La riga che ci interessa è quella relativa a [RSP] dove vediamo un offset pari 
 
 ## Exploitation
 
-Il nostro obiettivo finale è riuscire ad eseguire `system("/bin/sh")`, per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite i registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa _/bin/sh_ e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
+Il nostro obiettivo finale è riuscire ad eseguire `system("/bin/sh")`. Per fare questo, e non potendo iniettare codice nello stack per eseguirlo a causa della protezione *Non-eXecutable stack*, dobbiamo trovare delle istruzioni da sfruttare già presenti nel codice in esecuzione. Siccome ci troviamo su un sistema a 64 bit i parametri vengono passati alla funzione non tramite lo stack ma tramite alcuni registri. La funzione system si aspetta il primo parametro nel registro RDI e dobbiamo quindi trovare da qualche parte nel codice la stringa _/bin/sh_ e riuscire ad inserirla nel registro RDI. Dopodichè possiamo eseguire system, che andrà a leggere RDI ed eseguirà la shell.
 
 Il nostro payload diventa quindi:
 'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + SYSTEM_ADDRESS
 
-Dobbiamo trovare l'indirizzo di un'istruzione "pop rdi; ret" nel codice esistente, possiamo cercarlo nel codice dell'eseguibile oppure nella libreria libc. In questo secondo caso diventa superfluo il binary base leak spiegato prima. In qualunque caso per trovare l'indirizzo di una particolare istruzione possiamo sfruttare il tool ROPgadget così:
+Dobbiamo quindi anche trovare l'indirizzo di un'istruzione "pop rdi; ret" nel codice esistente, possiamo cercarlo nel codice dell'eseguibile oppure nella libreria libc. In questo secondo caso diventa superfluo il binary base leak spiegato prima e noi seguiamo questa strada per due motivi:
+- Abbiamo già bisogno del base address di libc per altre cose
+- In un programma di così piccole dimensioni non è detto che sia contenuta l'istruzione assembly che ci interessa
+Per trovare l'indirizzo di una particolare istruzione possiamo sfruttare il tool ROPgadget nel modo che segue:
 ```
 vincenzo@swsec-VirtualBox:~/Desktop/swsec_1$ ROPgadget --binary /usr/lib/x86_64-linux-gnu/libc.so.6 | grep "pop rdi"
 0x00000000000f7a3e : cld ; pop rdi ; sete cl ; or eax, ecx ; jmp 0xf79d5
@@ -267,15 +265,26 @@ La lista di risultati è molto più lunga ma ho omesso la maggior parte delle ri
 0x000000000002a3e5 : pop rdi ; ret
 ```
 
-Se l'attacco non funziona ancora può essere a causa di un disallineamento. Provandolo si vede infatti il programma crashare sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un errore di segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (standard usato tra gli altri da Linux e di cui ELF è parte) che impongono un allineamento dello stack a 16-byte prima di una call.
+Il nostro payload ora è ora questo:
+'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + SYSTEM_ADDRESS
+
+Può essere che un payload così costruito non funzioni ancora ed è proprio il nostro caso. Se l'attacco non funziona è necessario approfondire per capirne la causa ed una possibilità è che sia un problema di disallineamento. Provandolo si vede infatti il programma andare in crash sull'istruzione _movaps XMMWORD PTR [rsp],xmm0_ con un SIGSEGV, ovvero un errore di segmentation fault. Questo è dovuto alle specifiche _System V Application Binary Interface_ (standard usato tra gli altri da Linux e di cui ELF è parte) che impongono un allineamento dello stack a 16-byte prima di una call.
 Per risolvere possiamo aggiungere un'istruzione di ret che provoca il pop di 8 byte dalla cima dello stack sistemando così l'allineamento. Anche l'istruzione ret può essere trovata all'interno di libc, nello stesso modo di _pop rdi_.
 
-Il nostro payload ora è questo:
+Il nostro payload finale è questo:
 'A'* 24 + canary + 'B'* 8 + POP_RDI + BIN_SH_ADDRESS + RET + SYSTEM_ADDRESS
 
 Il file _attack_v2.py_ riporta l'attacco completo che abbiamo costruito fin qui e mostra una shell come risultato. Nello script, a differenza di quanto visto in questa descrizione, stringhe e funzioni interne a libc sono state indicate non tramite il loro indirizzo esplicito ma utilizzando l'oggetto ELF della libreria python pwntools, assegnandogli il base address trovato tramite il leak descritto ed ottenendo gli indirizzi corretti per _system_ e per _/bin/sh_.
 
+E' infatti possibile creare un oggetto di tipo ELF in python ed usarlo come segue:
+```
+libc = ELF('/usr/lib/x86_64-linux-gnu/libc.so.6', checksec=False)
+libc.address = INDIRIZZO_BASE # Da trovare in runtime causa ASLR attivo
+libc.search(b'/bin/sh')       # Si ottiene l'indirizzo della stringa /bin/sh
+libc.sym['system']            # Si ottiene l'indirizzo del metodo system
+```
+
 ## Conclusioni e possibili miglioramenti
 
-Abbiamo visto come aprire una shell utilizzando un programma con uno scopo completamente differente. L'attacco potrebbe diventare più efficace tentando una _privilege escalation_ tramite una chiamata al metodo *setuid*, anch'esso presente in libc.
-Per poterlo fare dobbiamo però prima riuscire ad azzerare due registri contenenti i parametri per la chiamata da effettuare, non è possibile passare `\00` più volte in input in quanto la funzione _gets_ presente nell'eseguibile attaccato interrompe la copia dell'input alla prima occorrenza di `\00`, di un `EOF` o di `\n`. Bisogna quindi trovare all'interno di libc le operazioni necessarie ad ottenere tale azzeramento dei registri, chiamare poi setuid ed infine _system_ con _/bin/sh_ come abbiamo fatto. Nel caso la shell di default del sistema attaccato sia bash questo è comunque poco utile in quanto bash rilascia i privilegi automaticamente all'avvio nel caso essi siano stato impostati con setuid prima della sua apertura.
+Abbiamo visto come aprire una shell utilizzando un programma nato con uno scopo completamente differente e che non prevede una shell tra le proprie funzionalità. L'attacco potrebbe diventare più efficace provando una _privilege escalation_ tramite una chiamata al metodo *setuid*, anch'esso presente in libc.
+Per poterlo fare dobbiamo però prima riuscire ad azzerare due registri contenenti i parametri per la chiamata da effettuare. Va tenuto presente che non è possibile passare `\00` più volte in input in quanto la funzione _gets_ presente nell'eseguibile target interrompe la copia dell'input alla prima occorrenza di `\00`, di un `EOF` o di `\n`. Bisogna quindi trovare all'interno di libc le operazioni necessarie ad ottenere tale azzeramento dei registri (ad esempio uno xor tra ciascuno di essi e sé stesso, spesso usato per questioni di ottimizzazione), chiamare poi setuid ed infine _system_ con _/bin/sh_ come abbiamo fatto. Nel caso la shell di default del sistema attaccato sia bash questo è comunque poco utile in quanto il processo bash rilascia i privilegi automaticamente all'avvio nel caso essi siano stati impostati con setuid prima della sua apertura. Questo è un comportamento presente da molti anni nelle shell più diffuse nel mondo linux, tuttavia ci sono versioni che non hanno questo sistema perché troppo vecchie o per bug (si veda ad esempio [questa segnalazione per il pacchetto Dash su Ubuntu](https://bugs.launchpad.net/ubuntu/+source/dash/+bug/1215660) )
