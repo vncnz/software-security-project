@@ -2,7 +2,7 @@
 
 ## Intro
 
-Il progetto inizialmente concordato prevedeva l'apertura di una shell tramite lo sfruttamento di una format-string-vulnerability in un processo con abilitata la protezione da buffer overflow (comunemente chiamata canary). Il progetto effettivamente implementato si è spinto più avanti, aprendo una shell in un'applicazione compilata con tutte le protezioni di default attive in gcc su un sistema a 64bit.
+Il progetto inizialmente concordato prevedeva l'apertura di una shell tramite lo sfruttamento di una format-string-vulnerability in un processo con abilitata la protezione da buffer overflow (comunemente chiamata canary). Il progetto effettivamente implementato si è spinto oltre, aprendo una shell in un'applicazione compilata con tutte le protezioni di default attive in gcc su un sistema a 64bit.
 Il sistema operativo di interesse è una versione recente di Linux Mint, una distro Ubuntu-based, a 64bit, con la protezione ASLR attiva.
 
 ## Strumenti utilizzati
@@ -54,7 +54,8 @@ vincenzo@UbuntuZsh:~/Desktop/software-security-project$ checksec vuln
 </pre>
 
 ### RELocation Read-Only (RELRO)
-Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only.
+Nei file di tipo ELF esiste una tabella chiamata Global Offset Table (GOT) che contiene per ciascun simbolo del programma la sua posizione nell'eseguibile indicata come offset rispetto al base address, cioè all'indirizzo di partenza a cui il sistema operativo l'ha caricato.
+Per evitare che un attaccante possa scrivere nella GOT riferimenti a funzioni in maniera arbitraria tutti i riferimenti dinamici a librerie esterne vengono risolti all'avvio dell'applicazione e la GOT viene resa read-only. Questo meccanismo è ininfluente ai fini del nostro attacco.
 
 ### Stack canary
 Al fine di cercare di evitare gli attacchi di buffer overflow, ovvero di scritture di valori che vanno oltre allo spazio allocato per gli array, il compilatore inserisce automaticamente in coda alle variabili locali di ogni funzione un valore casuale, generato all'avvio dell'applicazione, e verifica che tale valore rimanga immutato come ultima operazione al termine dell'esecuzione della funzione corrente. Se il valore letto non coincide con quello generato inizialmente l'applicazione genera un'eccezione.
