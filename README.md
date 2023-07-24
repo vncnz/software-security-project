@@ -289,3 +289,9 @@ libc.sym['system']            # Si ottiene l'indirizzo del metodo system
 
 Abbiamo visto come aprire una shell utilizzando un programma nato con uno scopo completamente differente e che non prevede una shell tra le proprie funzionalità. L'attacco potrebbe diventare più efficace provando una _privilege escalation_ tramite una chiamata al metodo *setuid*, anch'esso presente in libc.
 Per poterlo fare dobbiamo però prima riuscire ad azzerare due registri contenenti i parametri per la chiamata da effettuare. Va tenuto presente che non è possibile passare `\00` più volte in input in quanto la funzione _gets_ presente nell'eseguibile target interrompe la copia dell'input alla prima occorrenza di `\00`, di un `EOF` o di `\n`. Bisogna quindi trovare all'interno di libc le operazioni necessarie ad ottenere tale azzeramento dei registri (ad esempio uno xor tra ciascuno di essi e sé stesso, spesso usato per questioni di ottimizzazione), chiamare poi setuid ed infine _system_ con _/bin/sh_ come abbiamo fatto. Nel caso la shell di default del sistema attaccato sia bash questo è comunque poco utile in quanto il processo bash rilascia i privilegi automaticamente all'avvio nel caso essi siano stati impostati con setuid prima della sua apertura. Questo è un comportamento presente da molti anni nelle shell più diffuse nel mondo linux, tuttavia ci sono versioni che non hanno questo sistema perché troppo vecchie o per bug (si veda ad esempio [questa segnalazione per il pacchetto Dash su Ubuntu](https://bugs.launchpad.net/ubuntu/+source/dash/+bug/1215660) )
+
+# Note post-consegna
+
+Attenzione: non stiamo "curiosando" solo nello stack ma anche in alcuni registri:
+Linux: RDI, RSI, RDX, RCX, R8,  R9, remaining from the stack
+Windows: RCX, RDX, RSI, RDI, remaining from the stack
